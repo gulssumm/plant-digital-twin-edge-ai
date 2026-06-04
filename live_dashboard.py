@@ -19,7 +19,7 @@ data_signal = deque([500] * max_points, maxlen=max_points)
 
 # Graph Window
 fig, ax = plt.subplots(figsize=(10, 5))
-fig.canvas.manager.set_window_title('Plant Digital Twin - Live Monitor')
+fig.canvas.manager.set_window_title('Live Monitor')
 line, = ax.plot(data_signal, color='blue', linewidth=2)
 
 ax.set_ylim(100, 900)  # Signal amplitude limits
