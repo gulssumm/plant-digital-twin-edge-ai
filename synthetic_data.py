@@ -1,46 +1,81 @@
-import pandas as pd
+"""
+Multi-Regime Bio-Signal Simulation Generator for the Plant Digital Twin.
+
+Replicates the 50 Hz signal generation equations defined in the Arduino firmware
+(sketch.ino) across alternating chronological regimes (Normal, Environmental Stress,
+and Physical Trauma) so that chronological train/test splits (shuffle=False)
+contain all three operational states in both partitions.
+"""
+
 import numpy as np
+import pandas as pd
 
-# Zaman adımı (1000 satırlık kusursuz bir veri seti üreteceğiz)
-signal = []
-labels = []
+RANDOM_SEED = 42
+NUM_STEPS = 1000
+OUTPUT_CSV = "plant_dataset_1.csv"
 
-print("Kusursuz veri seti yönetmenliği başlıyor...")
 
-for i in range(1000):
-    # --- KRONOLOJİK SENARYO (Zaman Makinesi Korumalı) ---
-    
-    # 1. BÖLÜM: EĞİTİM SETİ (İlk %80 -> 0 ile 800. satırlar arası)
-    if i < 200: state = 0       # Normal dinlenme
-    elif i < 350: state = 1     # İlk sıcaklık dalgası (Stres)
-    elif i < 400: state = 2     # Butona basılma anları (Travma)
-    elif i < 600: state = 0     # Tekrar dinlenme
-    elif i < 750: state = 1     # İkinci sıcaklık dalgası
-    elif i < 800: state = 2     # Eğitim için son şoklar
-    
-    # 2. BÖLÜM: TEST SETİ (Son %20 -> 800 ile 1000. satırlar arası)
-    # İşte burası senin Classification Report tablonda üçünü de %90-98 arası gösterecek!
-    elif i < 860: state = 0     # Sınav: Normal durumu tanıyabilecek mi?
-    elif i < 930: state = 1     # Sınav: Stresi tanıyabilecek mi?
-    elif i < 960: state = 2     # Sınav: Travmayı kaçıracak mı?
-    else: state = 0             # Kapanış
-    
-    # --- BİYOLOJİK GÜRÜLTÜ (Arduino C++ Kodunun Python Hali) ---
-    baseline = 500 + np.sin(i * 0.02) * 50  # Temel dalgalanma (Nefes alma)
-    
-    if state == 0:
-        # Huzurlu ritim
-        sig = baseline + np.sin(i * 0.1) * 30 + np.sin(i * 0.05) * 20 + np.random.uniform(-15, 15)
-    elif state == 1:
-        # Kaotik Stres Ritimleri
-        sig = baseline + np.sin(i * 0.4) * 80 + np.cos(i * 0.15) * 60 + np.random.uniform(-50, 40)
-    else:
-        # Travma (Ağır Şoklar)
-        sig = baseline + np.sin(i * 1.5) * 120 + np.random.uniform(-150, 350)
-        
-    signal.append(sig)
-    labels.append(state)
+def generate_chronological_dataset(num_steps=NUM_STEPS, seed=RANDOM_SEED):
+    rng = np.random.default_rng(seed)
+    signals = []
+    labels = []
 
-# Veriyi DataFrame'e çevir ve CSV olarak kaydet
-df = pd.DataFrame({'Signal': signal, 'Label': labels})
-df.to_csv('plant_dataset_1.csv', index=False)
+    for i in range(num_steps):
+        # Training partition 
+        if i < 200:
+            state = 0  # Normal baseline state
+        elif i < 350:
+            state = 1  # Environmental stress episode 1
+        elif i < 400:
+            state = 2  # Physical trauma impulse 1
+        elif i < 600:
+            state = 0  # Recovery / normal baseline state
+        elif i < 750:
+            state = 1  # Environmental stress episode 2
+        elif i < 800:
+            state = 2  # Physical trauma impulse 2
+
+        # Held-out test partition (final 20%: steps 800..999)
+        elif i < 860:
+            state = 0  # Test regime: Normal
+        elif i < 930:
+            state = 1  # Test regime: Environmental stress
+        elif i < 960:
+            state = 2  # Test regime: Physical trauma
+        else:
+            state = 0  # Post-trauma recovery baseline
+
+        # Slow circadian baseline drift matching sketch.ino: 500 + sin(t * 0.02) * 50
+        baseline = 500.0 + np.sin(i * 0.02) * 50.0
+
+        if state == 0:
+            sig = (
+                baseline
+                + np.sin(i * 0.1) * 30.0
+                + np.sin(i * 0.05) * 20.0
+                + rng.uniform(-15.0, 15.0)
+            )
+        elif state == 1:
+            sig = (
+                baseline
+                + np.sin(i * 0.4) * 80.0
+                + np.cos(i * 0.15) * 60.0
+                + rng.uniform(-50.0, 40.0)
+            )
+        else:
+            sig = (
+                baseline
+                + np.sin(i * 1.5) * 120.0
+                + rng.uniform(-150.0, 350.0)
+            )
+
+        signals.append(sig)
+        labels.append(state)
+
+    df = pd.DataFrame({"Signal": signals, "Label": labels})
+    df.to_csv(OUTPUT_CSV, index=False)
+    print(f"Saved {len(df)} chronological bio-signal samples to '{OUTPUT_CSV}'.")
+
+
+if __name__ == "__main__":
+    generate_chronological_dataset()
